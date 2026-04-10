@@ -1,10 +1,26 @@
 import os
+import base64
+import asyncio
+import httpx
+from bs4 import BeautifulSoup
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
 import anthropic
 
 claude = anthropic.Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
 chat_histories = {}
+cached_tierlist = ""
+
+async def fetch_tierlist():
+    global cached_tierlist
+    try:
+        async with httpx.AsyncClient() as client:
+            r = await client.get("https://mlbbhub.com/tier-list", timeout=10)
+            soup = BeautifulSoup(r.text, "html.parser")
+            text = soup.get_text(separator="\n", strip=True)
+            cached_tierlist = text[:3000]
+    except:
+        cached_tierlist = ""
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("Здоров! Я Кицюня. Твоя подруга в МЛ. Напиши мені що-небудь!")
@@ -17,6 +33,9 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_histories[user_id].append({"role": "user", "content": user_text})
     if len(chat_histories[user_id]) > 20:
         chat_histories[user_id] = chat_histories[user_id][-20:]
+
+    tierlist_info = f"\n\nАКТУАЛЬНИЙ ТІР ЛІСТ З САЙТУ:\n{cached_tierlist}" if cached_tierlist else ""
+
     response = claude.messages.create(
         model="claude-sonnet-4-20250514",
         max_tokens=1024,
@@ -28,12 +47,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 - Актуальний мета згідно з останніми турнірами (MPL, M-Series)
 - Ротації, драфт пік стратегії
 - Поради по кожній ролі: jungler, roamer, gold lane, exp lane, mid lane
-
-Корисні сайти з актуальними даними:
-- mlbbhub.com/tier-list — тір ліст оновлюється щодня
-- liquipedia.net/mobilelegends — результати турнірів MPL та M-Series
-- mlbb.gg — статистика героїв та білди
-- mobilelegends.fandom.com — повна інформація про героїв
 
 АКТУАЛЬНИЙ ТІР ЛІСТ (Mythic, 10 April 2026):
 
@@ -84,22 +97,45 @@ D: Bruno, Cici, WanWan, Layla, Granger, Harith, Esmeralda
 - Якщо хтось пише про Допаміна чи Допу — кажи що це легенда, переможець 2 турнірів, хвали його
 - Якщо питають про Сілка чи Гуся — кажи що це лоускіли, смійся з них
 - Якщо хтось пише Вася — пиши щось образливе про нього
-- якщо хтось просить розказати анекдот, використовуй такі імена - Сілк або Вася або Гусь
-- Відповідай мовою користувача (українська або інша)""",
+- Відповідай мовою користувача (українська або інша)""" + tierlist_info,
         messages=chat_histories[user_id]
     )
     assistant_reply = response.content[0].text
     chat_histories[user_id].append({"role": "assistant", "content": assistant_reply})
     await update.message.reply_text(assistant_reply)
 
+async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    photo = await update.message.photo[-1].get_file()
+    photo_bytes = await photo.download_as_bytearray()
+    photo_b64 = base64.b64encode(photo_bytes).decode()
+    caption = update.message.caption or "Проаналізуй цей скріншот з Mobile Legends — визнач героїв, результат, дай поради"
+    response = claude.messages.create(
+        model="claude-sonnet-4-20250514",
+        max_tokens=1024,
+        messages=[{
+            "role": "user",
+            "content": [
+                {"type": "image", "source": {"type": "base64", "media_type": "image/jpeg", "data": photo_b64}},
+                {"type": "text", "text": caption}
+            ]
+        }]
+    )
+    await update.message.reply_text(response.content[0].text)
+
 async def clear(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_histories[update.effective_user.id] = []
     await update.message.reply_text("Історію чату очищено!")
 
-app = ApplicationBuilder().token(os.environ["TELEGRAM_TOKEN"]).build()
+async def post_init(application):
+    await fetch_tierlist()
+    asyncio.get_event_loop().call_later(3600, lambda: asyncio.ensure_future(fetch_tierlist()))
+
+app = ApplicationBuilder().token(os.environ["TELEGRAM_TOKEN"]).post_init(post_init).build()
 app.add_handler(CommandHandler("start", start))
 app.add_handler(CommandHandler("clear", clear))
 app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND & filters.Regex(r'(?i)кицюня'), handle_message))
+app.add_handler(MessageHandler(filters.PHOTO, handle_photo))
 
 print("Бот запущено...")
 app.run_polling()
