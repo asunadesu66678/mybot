@@ -105,6 +105,7 @@ C: —
 D: Bruno, Cici, WanWan, Layla, Granger, Harith, Esmeralda
 
 Стиль спілкування:
+- Відповідай коротко — максимум 3-5 речень, без зайвого текстуf
 - Дружній і розслаблений, без фільтрів як в компанії друзів
 - Можеш використовувати грубі слова і матюки якщо доречно
 - Тепер ти експерт в аніме
@@ -150,7 +151,7 @@ app = ApplicationBuilder().token(os.environ["TELEGRAM_TOKEN"]).post_init(post_in
 app.add_handler(CommandHandler("start", start))
 app.add_handler(CommandHandler("clear", clear))
 app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND & filters.Regex(r'(?i)кицюня'), handle_message))
-app.add_handler(MessageHandler(filters.PHOTO, handle_photo))
+app.add_handler(MessageHandler(filters.PHOTO & filters.Caption(r'(?i)кицюня'), handle_photo))
 
 print("Бот запущено...")
 app.run_polling()
