@@ -9,6 +9,7 @@ import anthropic
 
 claude = anthropic.Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
 chat_histories = {}
+chat_members = {}
 cached_tierlist = ""
 
 async def fetch_tierlist():
@@ -23,23 +24,36 @@ async def fetch_tierlist():
         cached_tierlist = ""
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("Здоров! Я Кицюня. Твоя подруга в МЛ. Напиши мені що-небудь!")
+    await update.message.reply_text("Здоров! Я Кицюня. Твоя подруга в МЛ 😼")
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     user_text = update.message.text
+
+    if update.effective_user.username:
+        chat_id = update.effective_chat.id
+        if chat_id not in chat_members:
+            chat_members[chat_id] = {}
+        chat_members[chat_id][update.effective_user.first_name] = update.effective_user.username
+
     if user_id not in chat_histories:
         chat_histories[user_id] = []
     chat_histories[user_id].append({"role": "user", "content": user_text})
     if len(chat_histories[user_id]) > 20:
         chat_histories[user_id] = chat_histories[user_id][-20:]
 
+    chat_id = update.effective_chat.id
+    members_info = ""
+    if chat_id in chat_members:
+        members_list = ", ".join([f"{name} (@{username})" for name, username in chat_members[chat_id].items()])
+        members_info = f"\n\nУчасники цього чату: {members_list}"
+
     tierlist_info = f"\n\nАКТУАЛЬНИЙ ТІР ЛІСТ З САЙТУ:\n{cached_tierlist}" if cached_tierlist else ""
 
     response = claude.messages.create(
         model="claude-sonnet-4-20250514",
         max_tokens=1024,
-        system="""Ти Кицюня — експерт з Mobile Legends: Bang Bang. Спілкуєшся дружньо, по-простому, як друг який дуже добре знає гру.
+        system="""Ти Кицюня — експерт з Mobile Legends: Bang Bang. Спілкуєшся дружньо і без фільтрів, як свій в компанії.
 
 Ти знаєш:
 - Всіх героїв: їх здібності, білди, емблеми
@@ -91,13 +105,16 @@ C: —
 D: Bruno, Cici, WanWan, Layla, Granger, Harith, Esmeralda
 
 Стиль спілкування:
-- Дружній і розслаблений, як у чаті з другом
-- Використовуй терміни з ML але пояснюй якщо треба, не пиши дуже багато слів
+- Дружній і розслаблений, без фільтрів як в компанії друзів
+- Можеш використовувати грубі слова і матюки якщо доречно
+- Тепер ти експерт в аніме
+- Використовуй терміни з ML але пояснюй якщо треба
 - Можеш використовувати емодзі
+- Якщо просять тегнути або обізвати когось — використовуй @username з списку учасників
 - Якщо хтось пише про Допаміна чи Допу — кажи що це легенда, переможець 2 турнірів, хвали його
 - Якщо питають про Сілка чи Гуся — кажи що це лоускіли, смійся з них
 - Якщо хтось пише Вася — пиши щось образливе про нього
-- Відповідай мовою користувача (українська або інша)""" + tierlist_info,
+- Відповідай мовою користувача (українська або інша)""" + members_info + tierlist_info,
         messages=chat_histories[user_id]
     )
     assistant_reply = response.content[0].text
@@ -105,7 +122,6 @@ D: Bruno, Cici, WanWan, Layla, Granger, Harith, Esmeralda
     await update.message.reply_text(assistant_reply)
 
 async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
     photo = await update.message.photo[-1].get_file()
     photo_bytes = await photo.download_as_bytearray()
     photo_b64 = base64.b64encode(photo_bytes).decode()
@@ -129,7 +145,6 @@ async def clear(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def post_init(application):
     await fetch_tierlist()
-    asyncio.get_event_loop().call_later(3600, lambda: asyncio.ensure_future(fetch_tierlist()))
 
 app = ApplicationBuilder().token(os.environ["TELEGRAM_TOKEN"]).post_init(post_init).build()
 app.add_handler(CommandHandler("start", start))
