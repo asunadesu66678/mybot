@@ -1,3 +1,5 @@
 anthropic==0.93.0
-python-dotenv==1.2.2
 python-telegram-bot==22.7
+python-dotenv==1.2.2
+httpx==0.28.1
+beautifulsoup4==4.12.3
