@@ -3,7 +3,7 @@ from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
 import anthropic
 
-claude = anthropic.Anthropic(api_key=os.environ["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"])
+claude = anthropic.Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
 chat_histories = {}
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -44,7 +44,7 @@ async def clear(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_histories[update.effective_user.id] = []
     await update.message.reply_text("Історію чату очищено!")
 
-app = ApplicationBuilder().token(os.environ["8616815565:AAFZOzopdI9QNk8Uu6jKw70zQf_ZdkxfOWk"]).build()
+app = ApplicationBuilder().token(os.environ["TELEGRAM_TOKEN"]).build()
 app.add_handler(CommandHandler("start", start))
 app.add_handler(CommandHandler("clear", clear))
 app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND & filters.Regex(r'(?i)кицюня'), handle_message))
