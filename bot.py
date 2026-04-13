@@ -51,7 +51,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     tierlist_info = f"\n\nАКТУАЛЬНИЙ ТІР ЛІСТ З САЙТУ:\n{cached_tierlist}" if cached_tierlist else ""
 
     response = claude.messages.create(
-        model="claude-sonnet-4-20250514",
+        model="claude-haiku-4-5-20251001",
         max_tokens=1024,
         system="""Ти Кицюня — експерт з Mobile Legends: Bang Bang. Спілкуєшся дружньо і без фільтрів, як свій в компанії.
 
